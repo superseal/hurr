@@ -1,0 +1,4 @@
+hurr
+====
+
+Text gaSegmentation fault
