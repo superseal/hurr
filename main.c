@@ -169,8 +169,8 @@ void readkey(char input, struct position *pos) {
 			shoot(*pos);
 			break;
 		/* (!) Debug */
-		case 'r':
-			list_insert(p1_items, 1, 0);
+		// case 'r':
+		//	list_insert(p1_items, 1, 0);
 		case 'q':
 			printmessage("Are you sure you want to end the game? [y/N]> ");
 			char input = getch();
