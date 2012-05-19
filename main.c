@@ -7,11 +7,16 @@
                   
 */
 
+/* Needed for using POSIX functions like nanosleep and strdup */
+#define _POSIX_C_SOURCE 200809L
+
 #include <ncurses.h>
 #include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include "inventory.h"
+#include "itemlist.h"
+#include <time.h>
 
 #define PLAYER_STRING "**"
 #define DEFAULT_STRING "  "
@@ -34,8 +39,13 @@ struct window {
 struct player {
 	struct position pos; /* Current player position */
 	char health, stamina;
-	Inventory *itemlist;
+	Inventory *itemlist; /* Player's own inventory */
 };
+
+/* Game objects list. _Do not_ modify this, the getters work with objects[] for
+   their operations. This was made this way so getters would be like getprop(2)
+   and not getprop(list, 2). */
+// const Item *objects;
 
 struct map mapopen();
 void play();
@@ -47,6 +57,7 @@ struct position moveobject(struct position pos, char input, char* newstring);
 void shoot(struct position pos); 
 WINDOW *createwin(int height, int width, int starty, int startx);
 void closewin(WINDOW *win);
+int gsleep(unsigned long usec);
 int endgame(char exitcode);
 void printmessage(char* message);
 void hitobject(struct position pos, char input);
@@ -70,9 +81,10 @@ int main() {
 	wheight -= 2; 
 	/* Print map and border starting from 1, 0 */
 	WINDOW *mainwindow = createwin(wheight, wwidth, 1, 0);
-	win.window = mainwindow;
-	win.wheight = wheight;
-	win.wwidth = wwidth;
+	win = (struct window) {mainwindow, wheight, wwidth};
+
+	/* Get read-only game objects list */
+//	objects = getgameobjects();
 
 	/* Start game */
 	play();
@@ -112,7 +124,7 @@ struct map mapopen() {
 	/* Read 2 characters from file, assign to each map grid */
 	row = 0, col = 0;
 	while (fgets(charbuffer, 3, mapfile)) {
-		if (*charbuffer != '\n') {map[row][col] = strdup(charbuffer); col++;}
+		if (*charbuffer != '\n') {map[row][col] = (char*) strdup(charbuffer); col++;}
 		else {row++; col = 0;}
 	}
 	fclose(mapfile);
@@ -129,8 +141,7 @@ void play() {
 	board.map[pos1.row][pos1.col] = PLAYER_STRING;
 
 	/* Upper left window corner for printing */
-	startpos.row = 0;
-	startpos.col = 0; 
+	startpos = (struct position) {0, 0};
 
 	char input, lastmove;
 	wrefresh(win.window);
@@ -157,11 +168,15 @@ void readkey(char input, struct position *pos) {
 		case 'e':
 			shoot(*pos);
 			break;
+		/* (!) Debug */
+		case 'r':
+			list_insert(p1_items, 1, 0);
 		case 'q':
 			printmessage("Are you sure you want to end the game? [y/N]> ");
 			char input = getch();
 			if (input == 'y' || input == 'Y') {endgame(0);}
 			clearmessages();
+			break;
 	}
 }
 
@@ -262,11 +277,11 @@ void shoot(struct position pos) {
 		while (!checkcollisions(pos_f, input)) {
 			pos_f = moveobject(pos_f, input, BULLET_STRING);
 			/* Bullet animation */
-			printmap(startpos, pos); usleep(3448);
+			printmap(startpos, pos); gsleep(3448);
 		}
 		board.map[pos_f.row][pos_f.col] = " %";
 		/* Hit animation */
-		printmap(startpos, pos); usleep(50000);
+		printmap(startpos, pos); gsleep(50000);
 		board.map[pos_f.row][pos_f.col] = DEFAULT_STRING;
 	}
 	hitobject(pos_f, input);
@@ -287,6 +302,7 @@ void hitobject(struct position pos, char input) {
 
 /*** Prints a message in messsage bar ***/
 void printmessage(char* message) {
+	clearmessages();
 	mvprintw(0, 0, message); 
 	wrefresh(win.window);
 }
@@ -307,13 +323,24 @@ WINDOW *createwin(int height, int width, int starty, int startx) {
 	return win;
 }
 
-/** Close ncurses window ***/
+/*** Close ncurses window ***/
 void closewin(WINDOW *win) {	
 	wborder(win, ' ', ' ', ' ',' ',' ',' ',' ',' ');
 	wrefresh(win);
 	delwin(win);
 }
 
+/*** Sleeps for usec microseconds ***/
+int gsleep(unsigned long usec) {
+	struct timespec req = {0, 0};
+	time_t sec = (int) (usec / 100000);
+	usec -= (sec * 100000);
+	req = (struct timespec) {sec, usec * 1000};
+	while (nanosleep(&req, &req) == -1) {continue;}
+	return 1;
+}
+
+/*** hurr ***/
 int endgame(char exitcode) {
 	refresh(); endwin(); exit(exitcode);
 }

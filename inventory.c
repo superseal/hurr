@@ -1,4 +1,4 @@
-#include <stdlib.h>
+// #include <stdlib.h>
 #include "inventory.h"
 
 /*** Create new node (seriously) ***/
@@ -22,9 +22,9 @@ Inventory *list_create() {
 
 /*** Insert new item with values (id, state) to inventory ***/
 void list_insert(Inventory *list, unsigned int position, char id, char state) {
-	if (position < 0 || position > list->length) {return;}
+	if (position > list->length) {return;}
 	Node *currentnode = list->header;
-	char index; 
+	unsigned char index; 
 	for (index = 0; index < position; index++) {
 		currentnode = currentnode->next;
 	}
@@ -35,9 +35,9 @@ void list_insert(Inventory *list, unsigned int position, char id, char state) {
 
 /*** Remove item i from inventory ***/
 void list_remove(Inventory *list, unsigned int position) {
-	if (position < 0 || position >= list->length) {return;}
+	if (position >= list->length) {return;}
 	Node *currentnode = list->header;
-	char index; 
+	unsigned char index; 
 	for (index = 0; index < position; index++) {
 		currentnode = currentnode->next;
 	}
@@ -50,7 +50,7 @@ void list_remove(Inventory *list, unsigned int position) {
 /*** Apply func() to every node in the list ***/
 int list_foreach(Inventory *list, int(*func)(Node*)) {
 	Node *currentnode = (list->header)->next;
-	char index;
+	unsigned char index;
 	/* Don't count header node, start at 1 */
 	for (index = 1; index <= list->length; index++) {
 		if (func(currentnode) != 0) {return -1;}
@@ -83,8 +83,8 @@ void list_swap(Inventory *list, unsigned int pos_0, unsigned int pos_1) {
 		pos_1 = temp;
 	}
 	/* Once they're sorted, check indexes */
-	if (pos_0 < 0 || pos_1 >= list->length || pos_0 == pos_1) {return;}
-	char index;
+	if (pos_1 >= list->length || pos_0 == pos_1) {return;}
+	unsigned char index;
 	/* Get pos_0 address and save */
 	for (index = 0; index <= pos_0; index++) {
 		currentnode = currentnode->next;

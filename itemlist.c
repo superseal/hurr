@@ -12,75 +12,9 @@
  * You were warned beforehand.
  */
 
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
-#include <assert.h>
 #include "itemlist.h"
 
-/* List all available item types */
-typedef enum {
-	car, firearm, bullet
-} itemtype;
-
-/*** Bullet properties ***/
-typedef struct bullettype {
-	unsigned short velocity;
-	unsigned short kineticenergy;
-} Bullet;
-
-/*** Car properties ***/
-typedef struct cartype {
-	unsigned short maxspeed;
-} Car;
-
-/*** Firearm properties ***/
-typedef enum {
-	handgun, shotgun, machinegun
-} weapontype;
-
-typedef struct firearmtype {
-	weapontype weaptype;
-	// set bulletid;
-	unsigned char capacity;
-} Firearm;
-
-/*** General item properties ***/
-typedef struct gameitem {
-	itemtype type;
-	char* name;
-	unsigned short bulk; 
-	unsigned short weight;
-	union {
-		Bullet bul;
-		Car car;
-		Firearm fir;
-	} properties;
-} Item;
-
-/* Using these is probably safer than a generic newitem() function with a
-   variable argument list. Or not. I'm fully aware this is bloat but it's
-   enterprise grade scalable bloat. */
-Item newbullet(char* name, unsigned short bulk, unsigned short weight, unsigned short velocity, unsigned short kineticenergy);
-Item newcar(char* name, unsigned short bulk, unsigned short weight, unsigned short maxspeed);
-Item newfirearm(char* name, unsigned short bulk, unsigned short weight, weapontype weaptype, unsigned char capacity);
-
-/* Game objects list. _Do not_ modify this, the getters work with objects[] for
-   their operations. This was made this way so getters would be like getprop(2)
-   instead of getprop(list, 2). */
-const Item *objects;
-
-Item *getgameobjects();
-
-/* Bullet getters */
-unsigned short getvelocity(short bullet_id);
-unsigned short getkineticenergy(short bullet_id);
-/* Car getters */
-unsigned short getmaxspeed(short car_id);
-/* Firearm getters */
-weapontype getweaptype(short firearm_id);
-unsigned char getcapacity(short firearm_id);
-
+/*** Item creators ***/
 Item newbullet(char* name, unsigned short bulk, unsigned short weight, unsigned short velocity, unsigned short kineticenergy) {
 	return (Item) {bullet, name, bulk, weight, .properties.bul = {velocity, kineticenergy}};
 }
@@ -93,7 +27,7 @@ Item newfirearm(char* name, unsigned short bulk, unsigned short weight, weaponty
 	return (Item) {firearm, name, bulk, weight, .properties.fir = {weaptype, capacity}};
 }
 
-
+/*** Returns a list with all the game objects ***/
 Item *getgameobjects() {
 	Item *objects = malloc(50 * sizeof(Item));
 	objects[0] = newfirearm("a gun", 500, 5000, handgun, 10);
@@ -102,7 +36,7 @@ Item *getgameobjects() {
 	return objects;
 }
 
-
+/*** Bullet getters ***/
 unsigned short getvelocity(short bullet_id) {
 	assert(objects[bullet_id].type == bullet); 
 	return objects[bullet_id].properties.bul.velocity;
@@ -113,11 +47,13 @@ unsigned short getkineticenergy(short bullet_id) {
 	return objects[bullet_id].properties.bul.kineticenergy;
 }
 
+/*** Car getters ***/
 unsigned short getmaxspeed(short car_id) {
 	assert(objects[car_id].type == car);
 	return objects[car_id].properties.car.maxspeed;
 }
 
+/*** Firearm getters ***/
 weapontype getweaptype(short firearm_id) {
 	assert(objects[firearm_id].type == firearm);
 	return objects[firearm_id].properties.fir.weaptype;

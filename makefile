@@ -1,6 +1,6 @@
 all:
-	gcc -Wall -g main.c inventory.c -l ncurses -o hax
+	gcc -Wall -Wextra -pedantic -std=c99 -g inventory.c itemlist.c main.c -l ncurses -o hax 
 test:
-	gcc -Wall -g test.c inventory.c -l ncurses -o test
+	gcc -Wall -Wextra -pedantic -std=c99 -g inventory.c itemlist.c test.c -l ncurses -o test
 clean:
 	rm ./hacking ./test
