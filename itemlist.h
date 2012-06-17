@@ -51,9 +51,9 @@ Item newbullet(char* name, unsigned short bulk, unsigned short weight, unsigned 
 Item newcar(char* name, unsigned short bulk, unsigned short weight, unsigned short maxspeed);
 Item newfirearm(char* name, unsigned short bulk, unsigned short weight, weapontype weaptype, unsigned char capacity);
 
-/* Game objects list. _Do not_ modify this, the getters work with objects[] for
-   their operations. This was made this way so getters would be like getprop(2)
-   instead of getprop(list, 2). */
+/* Game objects list. _Do not_ modify this, the getter functions use objects[]
+   for their operations. It was made this way so getters would be like
+   getprop(list, 2) instead of getprop(list, 2). */
 const Item *objects;
 
 

@@ -49,7 +49,7 @@ unsigned short getkineticenergy(short bullet_id) {
 
 /*** Car getters ***/
 unsigned short getmaxspeed(short car_id) {
-	assert(objects[car_id].type == car);
+	assert(objects[car_id].type == car && "dicks");
 	return objects[car_id].properties.car.maxspeed;
 }
 

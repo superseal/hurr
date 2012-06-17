@@ -1,4 +1,3 @@
-// #include <stdlib.h>
 #include "inventory.h"
 
 /*** Create new node (seriously) ***/

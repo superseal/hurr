@@ -7,84 +7,34 @@
                   
 */
 
-/* Needed for using POSIX functions like nanosleep and strdup */
-#define _POSIX_C_SOURCE 200809L
+#include "main.h"
 
-#include <ncurses.h>
-#include <string.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include "inventory.h"
-#include "itemlist.h"
-#include <time.h>
-
-#define PLAYER_STRING "**"
-#define DEFAULT_STRING "  "
-#define BULLET_STRING "^ "
-
-struct map {
-	char ***map; /* Array of array of char pointers, or 2D matrix of strings */
-	short height, width; /* Map dimensions */
-} board;
-
-struct position {
-	short row, col;
-} startpos; 
-
-struct window {
-	WINDOW *window; /* Pointer to ncurses window */
-	int wheight, wwidth; /* Number of rows and columns in the window */
-} win;
-
-struct player {
-	struct position pos; /* Current player position */
-	char health, stamina;
-	Inventory *itemlist; /* Player's own inventory */
-};
-
-/* Game objects list. _Do not_ modify this, the getters work with objects[] for
-   their operations. This was made this way so getters would be like getprop(2)
-   and not getprop(list, 2). */
-// const Item *objects;
-
-struct map mapopen();
-void play();
-void readkey(char input, struct position *pos);
-void printmap(struct position startpos, struct position pos);
-struct position scrollwindow(struct position startpos, struct position pos, char lastmove);
-char checkcollisions(struct position pos, char input);
-struct position moveobject(struct position pos, char input, char* newstring);
-void shoot(struct position pos); 
-WINDOW *createwin(int height, int width, int starty, int startx);
-void closewin(WINDOW *win);
-int gsleep(unsigned long usec);
-int endgame(char exitcode);
-void printmessage(char* message);
-void hitobject(struct position pos, char input);
-void clearmessages();
-
-/*** main(), hurr ***/
 int main() {
-	/* ncurses initialization, receives single keypresses, doesn't print input to screen */
-	initscr(); raw(); keypad(stdscr, TRUE); noecho(); 
-
-	/* Hide cursor */
-	curs_set(0);
+	initscr(); /* Initialize ncurses */
+	raw(); /* Receive single keypresses */
+	keypad(stdscr, TRUE); /* Enable F keys and numeric keypad */
+	noecho(); /* Don't print input to screen */
+	curs_set(0); /* Hide cursor */
 
 	/* Load file to gamemap */
  	board = mapopen();
 
-	/* Create game window */
+	/* Create message, game and stats windows */
 	int wheight, wwidth;
 	getmaxyx(stdscr, wheight, wwidth);
 	/* Leave room for stats and message bar */
 	wheight -= 2; 
-	/* Print map and border starting from 1, 0 */
-	WINDOW *mainwindow = createwin(wheight, wwidth, 1, 0);
-	win = (struct window) {mainwindow, wheight, wwidth};
+	WINDOW *messagewindow = createwin(1, wwidth, 0, 0);
+	/* Print map and border starting from (y, x) = (1, 0) */
+	WINDOW *gamewindow = createwin(wheight, wwidth, 1, 0);
+	WINDOW *statswindow = createwin(1, wwidth, wheight, 0);
+	
+	messagewin = (struct window) {messagewindow, wheight, wwidth};
+	gamewin = (struct window) {gamewindow, wheight, wwidth};
+	statswin = (struct window) {statswindow, wheight, wwidth};
 
 	/* Get read-only game objects list */
-//	objects = getgameobjects();
+	objects = getgameobjects();
 
 	/* Start game */
 	play();
@@ -141,21 +91,27 @@ void play() {
 	board.map[pos1.row][pos1.col] = PLAYER_STRING;
 
 	/* Upper left window corner for printing */
-	startpos = (struct position) {0, 0};
+	upperleft = (struct position) {0, 0};
 
 	char input, lastmove;
-	wrefresh(win.window);
+	wrefresh(gamewin.window);
 	while (1) { 
-		startpos = scrollwindow(startpos, player1.pos, lastmove);
-		printmap(startpos, player1.pos);
-		input = getch();
-		readkey(input, &(player1.pos)); 
+		upperleft = scrollwindow(upperleft, player1.pos, lastmove);
+		printmap(upperleft, player1.pos);
+		input = wgetch(gamewin.window);
+		readkey(input, &player1); 
 		lastmove = input;
 	}
 }
 
 /*** Execute a game command after getting user input ***/
-void readkey(char input, struct position *pos) {
+void readkey(char input, struct player *player1) {
+	/* [i] You're taking a pointer to a player struct here. Be careful. */
+	/* This should take the address of the position struct, which is a member
+	   of the player struct. But we have a pointer to a player struct here,
+	   hence the ->. The pointer address is used so the value of the position can be
+	   updated from the inside of this function. */
+	struct position *pos = &(player1->pos); 
 	switch (input) {
 		case 'w': 
 		case 'a':
@@ -169,11 +125,13 @@ void readkey(char input, struct position *pos) {
 			shoot(*pos);
 			break;
 		/* (!) Debug */
-		// case 'r':
-		//	list_insert(p1_items, 1, 0);
+		case 'r':
+			showinventory(player1);
+			list_insert(player1->itemlist, 0, 1, 0);
+			break;
 		case 'q':
 			printmessage("Are you sure you want to end the game? [y/N]> ");
-			char input = getch();
+			char input = wgetch(messagewin.window);
 			if (input == 'y' || input == 'Y') {endgame(0);}
 			clearmessages();
 			break;
@@ -181,53 +139,50 @@ void readkey(char input, struct position *pos) {
 }
 
 /*** Scroll window if last move is 2 positions before touching the window borders ***/
-struct position scrollwindow(struct position startpos, struct position pos, char lastmove) {
+struct position scrollwindow(struct position upperleft, struct position pos, char lastmove) {
 	/* pos.row - 2 == startrow - 2  ->  pos.row + 4 == startrow */
-	short startrow = startpos.row, startcol = startpos.col;
+	short startrow = upperleft.row, startcol = upperleft.col;
 	short row = pos.row, col = pos.col;
+	char scr;
 	switch (lastmove) {
 		case 'w':
-			if ((row - 1 == startrow) && (startrow > 0)) {
-				--startrow;
-			}; 
+			scr = (row - 1 == startrow) && (startrow > 0);
+			if (scr) {--startrow;}
 			break;
 		case 'a': 
-			if ((col - 1 == startcol) && (startcol > 0)) {
-				--startcol;
-			}; 
+			scr = (col - 1 == startcol) && (startcol > 0);
+			if (scr) {--startcol;}
 			break;
 		case 's': 
-			if ((row + 4 == startrow + win.wheight) && (startrow + win.wheight - 2 < board.height)) {
-				++startrow;
-			}; 
+			scr = (row + 4 == startrow + gamewin.wheight) && (startrow + gamewin.wheight - 2 < board.height);
+			if (scr) {++startrow;}
 			break;
 		case 'd': 
-			if ((col + 3 == startcol + (win.wwidth/2)) && (startcol + (win.wwidth/2) - 1 < board.width)) {
-				++startcol;
-			}; 
+			scr = (col + 3 == startcol + (gamewin.wwidth/2)) && (startcol + (gamewin.wwidth/2) - 1 < board.width);
+			if (scr) {++startcol;} 
 			break;
 	}
-	struct position newstartpos = {startrow, startcol};
-	return newstartpos;
+	struct position newupperleft = {startrow, startcol};
+	return newupperleft;
 }
 
 /*** Print map to window ***/ 
-void printmap(struct position startpos, struct position pos) {
+void printmap(struct position upperleft, struct position pos) {
 	/* Substract 2 rows and cols (window borders) */
-	short startrow = startpos.row, startcol = startpos.col;
-	short height = (win.wheight - 2    < board.height ? win.wheight - 2    + startrow : board.height);
-	short width  = ((win.wwidth/2) - 2 < board.width  ? (win.wwidth - 2)/2 + startcol : board.width);
+	short startrow = upperleft.row, startcol = upperleft.col;
+	short height = (gamewin.wheight - 2    < board.height ? gamewin.wheight - 2    + startrow : board.height);
+	short width  = ((gamewin.wwidth/2) - 2 < board.width  ? (gamewin.wwidth - 2)/2 + startcol : board.width);
 	short row, col; /* Map row and column */
 	short y, x; /* Coordinates passed to mvprintw function for printing on screen */
 	for (row = startrow, y = 0; row < height; row++, y++) {
 		for (col = startcol, x = 0; col < width; col++, x++) {
-			/* Add 1 row and column (start from position 1, 1 of window win) */
-            mvwprintw(win.window, (y + 1), ((2 * x) + 1), "%s", board.map[row][col]);
+			/* Add 1 row and column (start from position 1, 1 of window gamewin) */
+            mvwprintw(gamewin.window, (y + 1), ((2 * x) + 1), "%s", board.map[row][col]);
 		}
 	}
 	/* Shows position in map */
-	mvprintw(win.wheight, win.wwidth - 10, "[%2d,%2d]", pos.row, pos.col); 
-	wrefresh(win.window);
+	mvwprintw(gamewin.window, gamewin.wheight - 1, gamewin.wwidth - 10, "[%2d,%2d]", pos.row, pos.col); 
+	wrefresh(gamewin.window);
 }
 
 /*** Check map boundaries and validate movements ***/
@@ -245,7 +200,7 @@ char checkcollisions(struct position pos, char input) {
 			strcmp(board.map[nextrow][nextcol], DEFAULT_STRING) != 0);
 }
 
-/*** Move object in grid **/
+/*** Move object in map grid ***/
 struct position moveobject(struct position pos, char input, char* newstring) {
 	short row = pos.row, col = pos.col;
 	board.map[row][col] = DEFAULT_STRING;
@@ -259,12 +214,12 @@ struct position moveobject(struct position pos, char input, char* newstring) {
 	return newpos;
 }
 
-/*** Shoots bullet ***/
+/*** Shoots a single bullet ***/
 void shoot(struct position pos) {
 	struct position pos_f = {pos.row, pos.col};
 	/* Check inventory for bullets */
 	printmessage("Shoot> ");
-	char input = getch();
+	char input = wgetch(gamewin.window);
 	if (!checkcollisions(pos, input)) {
 		switch (input) {
 			case 'w': --(pos_f.row); break;
@@ -273,15 +228,15 @@ void shoot(struct position pos) {
 			case 'd': ++(pos_f.col); break;
 		}
 		board.map[pos_f.row][pos_f.col] = BULLET_STRING;
-		printmap(startpos, pos);
+		printmap(upperleft, pos);
 		while (!checkcollisions(pos_f, input)) {
 			pos_f = moveobject(pos_f, input, BULLET_STRING);
 			/* Bullet animation */
-			printmap(startpos, pos); gsleep(3448);
+			printmap(upperleft, pos); gsleep(3448);
 		}
-		board.map[pos_f.row][pos_f.col] = " %";
+		board.map[pos_f.row][pos_f.col] = "``";
 		/* Hit animation */
-		printmap(startpos, pos); gsleep(50000);
+		printmap(upperleft, pos); gsleep(50000);
 		board.map[pos_f.row][pos_f.col] = DEFAULT_STRING;
 	}
 	hitobject(pos_f, input);
@@ -300,30 +255,43 @@ void hitobject(struct position pos, char input) {
 	}
 }
 
+/*** Shows current player inventory in a centered window ***/
+void showinventory(struct player *player1) {
+	/* Add 2 for borders */ 
+	int starty = (gamewin.wheight - 2*(10 + 2)) / 2;
+	int startx = (gamewin.wwidth  - (54 + 2)) / 2;
+	int width  = 54 + 2;
+	int height = gamewin.wheight - 12;
+	WINDOW *inventorywindow = createwin(height, width, starty, startx);
+	wrefresh(inventorywindow);
+	wgetch(inventorywindow);
+	closewin(inventorywindow);
+}
+
 /*** Prints a message in messsage bar ***/
 void printmessage(char* message) {
 	clearmessages();
-	mvprintw(0, 0, message); 
-	wrefresh(win.window);
+	mvwprintw(messagewin.window, 0, 0, message); 
+	wrefresh(messagewin.window);
 }
 
 /*** Clears message bar ***/
 void clearmessages() {
 	int x;
-	for (x = 0; x < win.wwidth; x++) {mvaddch(0, x, ' ');}
-	wrefresh(win.window);
+	for (x = 0; x < messagewin.wwidth; x++) {mvwaddch(messagewin.window, 0, x, ' ');}
+	wrefresh(messagewin.window);
 }
 
-/*** Create ncurses window ***/
+/*** Creates an ncurses window ***/
 WINDOW *createwin(int height, int width, int starty, int startx) {
 	WINDOW *win = newwin(height, width, starty, startx); 
-	getch(); // Needs getch to create window border who knows why
 	box(win, 0, 0);
 	wrefresh(win);
+	refresh();
 	return win;
 }
 
-/*** Close ncurses window ***/
+/*** Closes an ncurses window ***/
 void closewin(WINDOW *win) {	
 	wborder(win, ' ', ' ', ' ',' ',' ',' ',' ',' ');
 	wrefresh(win);
@@ -340,7 +308,7 @@ int gsleep(unsigned long usec) {
 	return 1;
 }
 
-/*** hurr ***/
+/*** Ends game, hurr ***/
 int endgame(char exitcode) {
 	refresh(); endwin(); exit(exitcode);
 }
