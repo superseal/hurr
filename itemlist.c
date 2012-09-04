@@ -36,6 +36,12 @@ Item *getgameobjects() {
 	return objects;
 }
 
+/*** Generic getter for all items, returns name ***/
+char *getname(short item_id) {
+	return objects[item_id].name;
+}
+
+
 /*** Bullet getters ***/
 unsigned short getvelocity(short bullet_id) {
 	assert(objects[bullet_id].type == bullet); 

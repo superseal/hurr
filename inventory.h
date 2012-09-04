@@ -1,6 +1,9 @@
+#include <ncurses.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+
+#include "itemlist.h"
 
 typedef struct listnode {
 	unsigned char id; /* Object ID */
@@ -26,6 +29,7 @@ void list_insert(Inventory *list, unsigned int position, char id, char state);
 void list_remove(Inventory *list, unsigned int position);
 
 /* Apply func() to every node in the list */
+/* func must return an exit code */
 int list_foreach(Inventory *list, int(*func)(Node*));
 
 /* Returns position of element with matching ID and state */
@@ -33,3 +37,6 @@ unsigned int list_find(Inventory *list, char id, char state);
 
 /* Swap ID and state of nodes at pos_0 and pos_1 */
 void list_swap(Inventory *list, unsigned int pos_0, unsigned int pos_1);
+
+/* Print inventory to window */
+void list_windowprint(Inventory *list, WINDOW *inventorywin);

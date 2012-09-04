@@ -60,6 +60,9 @@ const Item *objects;
 /*** Returns a list with all the game objects ***/
 Item *getgameobjects();
 
+/*** Generic getter for all items, returns name ***/
+char *getname(short item_id);
+
 
 /*** Bullet getters ***/
 unsigned short getvelocity(short bullet_id);

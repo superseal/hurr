@@ -6,7 +6,6 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include "inventory.h"
-#include "itemlist.h"
 #include <time.h>
 
 #define PLAYER_STRING "**"
@@ -79,10 +78,10 @@ void printmessage(char* message);
 void clearmessages();
 
 /* Creates an ncurses window */
-WINDOW *createwin(int height, int width, int starty, int startx);
+struct window createwin(int height, int width, int starty, int startx);
 
 /* Closes an ncurses window */
-void closewin(WINDOW *win);
+void closewin(struct window win);
 
 /* Sleeps for usec microseconds */
 int gsleep(unsigned long usec);

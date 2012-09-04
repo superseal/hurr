@@ -24,14 +24,10 @@ int main() {
 	getmaxyx(stdscr, wheight, wwidth);
 	/* Leave room for stats and message bar */
 	wheight -= 2; 
-	WINDOW *messagewindow = createwin(1, wwidth, 0, 0);
+	messagewin = createwin(1, wwidth, 0, 0);
 	/* Print map and border starting from (y, x) = (1, 0) */
-	WINDOW *gamewindow = createwin(wheight, wwidth, 1, 0);
-	WINDOW *statswindow = createwin(1, wwidth, wheight, 0);
-	
-	messagewin = (struct window) {messagewindow, wheight, wwidth};
-	gamewin = (struct window) {gamewindow, wheight, wwidth};
-	statswin = (struct window) {statswindow, wheight, wwidth};
+	gamewin = createwin(wheight, wwidth, 1, 0);
+	statswin = createwin(1, wwidth, wheight, 0);
 
 	/* Get read-only game objects list */
 	objects = getgameobjects();
@@ -54,8 +50,14 @@ struct map mapopen() {
 	/* Count number of rows and columns in map */
 	row = 0, col = 0;
 	while (fgets(charbuffer, 3, mapfile)) {
-		if (*charbuffer != '\n') {col++;}
-		else {row++; width = col; col = 0;} 
+		if (*charbuffer != '\n') {
+            col++;
+        }
+		else {
+            row++; 
+            width = col; 
+            col = 0;
+        } 
 	}
 	height = row;
 
@@ -74,8 +76,13 @@ struct map mapopen() {
 	/* Read 2 characters from file, assign to each map grid */
 	row = 0, col = 0;
 	while (fgets(charbuffer, 3, mapfile)) {
-		if (*charbuffer != '\n') {map[row][col] = (char*) strdup(charbuffer); col++;}
-		else {row++; col = 0;}
+		if (*charbuffer != '\n') {
+            map[row][col] = (char*) strdup(charbuffer); 
+            col++;
+        } else {
+            row++;
+            col = 0;
+        }
 	}
 	fclose(mapfile);
 	struct map gamemap = {map, height, width};
@@ -257,15 +264,21 @@ void hitobject(struct position pos, char input) {
 
 /*** Shows current player inventory in a centered window ***/
 void showinventory(struct player *player1) {
-	/* Add 2 for borders */ 
-	int starty = (gamewin.wheight - 2*(10 + 2)) / 2;
-	int startx = (gamewin.wwidth  - (54 + 2)) / 2;
-	int width  = 54 + 2;
-	int height = gamewin.wheight - 12;
-	WINDOW *inventorywindow = createwin(height, width, starty, startx);
-	wrefresh(inventorywindow);
-	wgetch(inventorywindow);
-	closewin(inventorywindow);
+    /* Leave 6 rows between top and bottom */
+    /* starty + gamewin y offset */
+	int starty = 6 + 2;
+    /* Effective variable height + inventorywin borders */
+	int height = gamewin.wheight - (12 + 2);
+    /* Effective constant width + inventorywin borders */
+	int width  = 54 + 2; 
+    /* Keep width constant at width cols */
+    /* width + 2 for gamewin borders) */
+	int startx = (gamewin.wwidth - (width + 2)) / 2; 
+
+	struct window inventorywin = createwin(height, width, starty, startx);
+	list_windowprint(player1->itemlist, inventorywin.window);
+	wgetch(inventorywin.window);
+    closewin(inventorywin);
 }
 
 /*** Prints a message in messsage bar ***/
@@ -278,24 +291,35 @@ void printmessage(char* message) {
 /*** Clears message bar ***/
 void clearmessages() {
 	int x;
-	for (x = 0; x < messagewin.wwidth; x++) {mvwaddch(messagewin.window, 0, x, ' ');}
+	for (x = 0; x < messagewin.wwidth; x++) {
+        mvwaddch(messagewin.window, 0, x, ' ');
+    }
 	wrefresh(messagewin.window);
 }
 
 /*** Creates an ncurses window ***/
-WINDOW *createwin(int height, int width, int starty, int startx) {
-	WINDOW *win = newwin(height, width, starty, startx); 
-	box(win, 0, 0);
-	wrefresh(win);
+struct window createwin(int height, int width, int starty, int startx) {
+	WINDOW *new = newwin(height, width, starty, startx); 
+	box(new, 0, 0);
+	wrefresh(new);
 	refresh();
+    struct window win = {new, height, width};
 	return win;
 }
 
 /*** Closes an ncurses window ***/
-void closewin(WINDOW *win) {	
-	wborder(win, ' ', ' ', ' ',' ',' ',' ',' ',' ');
-	wrefresh(win);
-	delwin(win);
+void closewin(struct window win) {	
+	wborder(win.window, ' ', ' ', ' ',' ',' ',' ',' ',' ');
+    /* Forced cleaning */
+	short row, col;
+	for (row = 0; row < win.wheight; row++) {
+		for (col = 0; col < win.wwidth; col++) {
+            mvwprintw(win.window, row, col, " ");
+		}
+	}
+	wrefresh(win.window);
+	delwin(win.window);
+    refresh();
 }
 
 /*** Sleeps for usec microseconds ***/
@@ -310,5 +334,7 @@ int gsleep(unsigned long usec) {
 
 /*** Ends game, hurr ***/
 int endgame(char exitcode) {
-	refresh(); endwin(); exit(exitcode);
+	refresh(); 
+    endwin(); 
+    exit(exitcode);
 }

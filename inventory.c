@@ -99,3 +99,15 @@ void list_swap(Inventory *list, unsigned int pos_0, unsigned int pos_1) {
 	node_0->id = node_1->id; node_0->state = node_1->state;
 	node_1->id = tid; node_1->state = tstate;
 }
+
+/*** Print inventory to window ***/
+/* This shouldn't really be here. I know. */
+void list_windowprint(Inventory *list, WINDOW *inventorywin) {
+	Node *currentnode = (list->header)->next;
+	unsigned char index;
+	/* Don't count header node, start at 1 */
+	for (index = 1; index <= list->length; index++) {
+		mvwprintw(inventorywin, index, 1, "%4d %-40s 100/100", index, getname(currentnode->id));
+		currentnode = currentnode->next;
+	}	
+}
